@@ -17,6 +17,7 @@ For each indicator, it provides:
 - A sparkline chart
 - What changed versus the prior release
 - Current state interpretation
+- A FED ANALYSIS tab with policy synthesis across inflation, labor, rates, and recession risk
 
 ## Run
 
@@ -35,6 +36,7 @@ Display behavior:
 
 - Indicator cards are sorted by newest release date first.
 - In server mode (`npm start`), manual API key controls are hidden.
+- FED ANALYSIS renders larger terminal-style policy panels instead of standard indicator cards.
 
 ## Notes
 

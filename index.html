@@ -20,7 +20,7 @@
         <h1 class="terminal-title">FED MACRO TERMINAL</h1>
         <p class="terminal-subtitle">Federal Reserve signal board with live FED-focused data and policy-facing interpretation.</p>
       </div>
-      <div class="api-panel">
+      <div id="apiPanel" class="api-panel">
         <label id="apiKeyLabel" for="apiKeyInput">FED Data API Key</label>
         <div class="api-row">
           <input id="apiKeyInput" type="password" placeholder="Enter key (stored in browser)" autocomplete="off" />
@@ -37,15 +37,17 @@
       <div class="status-chip"><span>Inflation Pulse</span><strong id="inflationPulse">-</strong></div>
       <div class="status-chip"><span>Labor Pulse</span><strong id="laborPulse">-</strong></div>
       <div class="status-chip"><span>Rates Regime</span><strong id="ratesPulse">-</strong></div>
+      <div class="status-chip"><span>Recession Signal</span><strong id="recessionPulse">-</strong></div>
     </section>
 
     <nav class="tabs" aria-label="Indicator categories">
       <button class="tab is-active" data-category="overview" type="button">Overview</button>
-      <button class="tab" data-category="inflation" type="button">Inflation</button>
+      <button class="tab" data-category="inflation" type="button">INFLATION METRICS - DUAL MANDATE: PRICE STABILITY TARGET</button>
       <button class="tab" data-category="labor" type="button">Labor</button>
       <button class="tab" data-category="growth" type="button">Growth</button>
       <button class="tab" data-category="activity" type="button">Activity</button>
       <button class="tab" data-category="rates" type="button">Rates &amp; Curves</button>
+      <button class="tab" data-category="fed-analysis" type="button">FED ANALYSIS</button>
     </nav>
 
     <section class="insight-panel">

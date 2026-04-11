@@ -33,6 +33,7 @@ body {
   background-image: linear-gradient(rgba(103, 214, 255, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(103, 214, 255, 0.08) 1px, transparent 1px);
   background-size: 30px 30px;
+  -webkit-mask-image: radial-gradient(circle at center, black 20%, transparent 100%);
   mask-image: radial-gradient(circle at center, black 20%, transparent 100%);
 }
 
@@ -43,6 +44,7 @@ body {
   border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(12, 35, 48, 0.95), rgba(5, 16, 23, 0.98));
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   animation: rise 600ms ease-out;
 }
@@ -129,7 +131,7 @@ button:hover {
 .status-row {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -193,6 +195,71 @@ button:hover {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
+}
+
+.cards-grid.analysis-grid {
+  grid-template-columns: 1fr;
+}
+
+.section-banner {
+  margin-top: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--cool);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.analysis-panel {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--cool);
+  background: linear-gradient(180deg, rgba(12, 25, 35, 0.92), rgba(8, 18, 26, 0.96));
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-panel.warn {
+  border-left-color: var(--warn);
+}
+
+.analysis-panel.hot {
+  border-left-color: var(--hot);
+}
+
+.analysis-panel.ok {
+  border-left-color: var(--ok);
+}
+
+.analysis-kicker {
+  margin: 0;
+  color: var(--cool);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.analysis-panel.warn .analysis-kicker {
+  color: var(--warn);
+}
+
+.analysis-panel.hot .analysis-kicker {
+  color: var(--hot);
+}
+
+.analysis-panel.ok .analysis-kicker {
+  color: var(--ok);
+}
+
+.analysis-copy {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.65;
+}
+
+.analysis-copy strong {
+  color: var(--text);
 }
 
 .card {

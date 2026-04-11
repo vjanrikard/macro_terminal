@@ -96,6 +96,7 @@ let latestDataset = [];
 let hasServerKey = false;
 
 const el = {
+  apiPanel: document.getElementById("apiPanel"),
   apiKeyLabel: document.getElementById("apiKeyLabel"),
   apiKeyInput: document.getElementById("apiKeyInput"),
   apiHint: document.getElementById("apiHint"),
@@ -109,6 +110,7 @@ const el = {
   inflationPulse: document.getElementById("inflationPulse"),
   laborPulse: document.getElementById("laborPulse"),
   ratesPulse: document.getElementById("ratesPulse"),
+  recessionPulse: document.getElementById("recessionPulse"),
 };
 
 init();
@@ -143,14 +145,11 @@ async function init() {
 
 function updateApiPanelMode() {
   if (hasServerKey) {
-    el.apiKeyLabel.textContent = "FED API key loaded from .env";
-    el.apiKeyInput.value = "";
-    el.apiKeyInput.style.display = "none";
-    el.saveKeyBtn.style.display = "none";
-    el.apiHint.textContent = "Server mode active. Key is read from FED_API_KEY/FRED_API_KEY in .env. Use Refresh to reload data.";
+    el.apiPanel.style.display = "none";
     return;
   }
 
+  el.apiPanel.style.display = "";
   el.apiKeyLabel.textContent = "FED Data API Key";
   el.apiKeyInput.style.display = "";
   el.saveKeyBtn.style.display = "";
@@ -190,7 +189,7 @@ async function refreshAll() {
     renderCards(latestDataset);
     updatePulseChips(latestDataset);
     el.lastUpdate.textContent = new Date().toLocaleString();
-    setStatus(useServerKey ? "Live (.env key)" : "Live", "ok");
+    setStatus("FED ANALYSIS", "ok");
   } catch (error) {
     setStatus("Fetch error", "hot");
     el.cardsContainer.innerHTML = `<article class="card"><p class="explain">${escapeHtml(error.message)}</p></article>`;
@@ -360,6 +359,13 @@ function assessSeries(id, stats) {
 }
 
 function renderCards(data) {
+  if (currentCategory === "fed-analysis") {
+    renderFedAnalysis(data);
+    return;
+  }
+
+  el.cardsContainer.classList.remove("analysis-grid");
+
   const filtered = (currentCategory === "overview" ? data : data.filter((d) => d.category === currentCategory))
     .slice()
     .sort((a, b) => new Date(b.stats.latest.date) - new Date(a.stats.latest.date));
@@ -441,7 +447,124 @@ function renderCards(data) {
   });
 }
 
+function renderFedAnalysis(data) {
+  clearCharts();
+  el.cardsContainer.classList.add("analysis-grid");
+
+  const corePce = data.find((d) => d.id === "PCEPILFE");
+  const unemployment = data.find((d) => d.id === "UNRATE");
+  const payrolls = data.find((d) => d.id === "PAYEMS");
+  const fedFunds = data.find((d) => d.id === "FEDFUNDS");
+  const spread = data.find((d) => d.id === "T10Y2Y");
+  const gdp = data.find((d) => d.id === "GDPC1");
+  const retail = data.find((d) => d.id === "RSAFS");
+
+  const corePceYoy = safePercent(corePce?.stats.yoy);
+  const unemploymentRate = safePercent(unemployment?.stats.latest.value);
+  const fedFundsRate = safePercent(fedFunds?.stats.latest.value);
+  const payrollDelta = payrolls?.stats.delta ?? null;
+  const spreadPct = spread?.stats.latest.value ?? null;
+  const realRate = Number.isFinite(fedFunds?.stats.latest.value) && Number.isFinite(corePce?.stats.yoy)
+    ? fedFunds.stats.latest.value - corePce.stats.yoy
+    : null;
+  const taylorRate = Number.isFinite(corePce?.stats.yoy) && Number.isFinite(unemployment?.stats.latest.value)
+    ? 2 + corePce.stats.yoy + 0.5 * (corePce.stats.yoy - 2) + 0.5 * (4 - unemployment.stats.latest.value)
+    : null;
+  const stanceGap = Number.isFinite(taylorRate) && Number.isFinite(fedFunds?.stats.latest.value)
+    ? fedFunds.stats.latest.value - taylorRate
+    : null;
+
+  const inflationClause = !corePce
+    ? "Core PCE data unavailable."
+    : corePce.stats.yoy <= 2.3
+      ? `Core PCE at ${corePceYoy} is effectively on top of the 2% objective. Price stability looks broadly restored.`
+      : corePce.stats.yoy <= 3
+        ? `Core PCE at ${corePceYoy} is moving toward 2%, but inflation is still somewhat above target.`
+        : `Core PCE at ${corePceYoy} remains well above the 2% objective. Price stability is not yet secured.`;
+
+  const laborClause = !unemployment
+    ? "Labor market data unavailable."
+    : unemployment.stats.latest.value < 4.2
+      ? `U-3 unemployment at ${unemploymentRate} signals a still-tight labor market. There is limited labor-side urgency for rapid easing.`
+      : unemployment.stats.latest.value < 4.8
+        ? `U-3 unemployment at ${unemploymentRate} suggests the labor market is cooling, but not breaking.`
+        : `U-3 unemployment at ${unemploymentRate} points to more visible labor market softening and rising downside risk to employment.`;
+
+  const payrollClause = Number.isFinite(payrollDelta)
+    ? `Latest payroll change was ${formatSigned(payrollDelta, 0)} thousand, which keeps hiring momentum ${payrollDelta > 150 ? "firm" : payrollDelta > 50 ? "positive but slower" : "fragile"}.`
+    : "Latest payroll change unavailable.";
+
+  const policyText = !fedFunds
+    ? "Fed funds data unavailable."
+    : `Effective FFR: ${fedFundsRate}. Real rate (FFR minus Core PCE YoY): ${formatSigned(realRate, 2)} pp.`;
+
+  const taylorText = Number.isFinite(taylorRate) && Number.isFinite(stanceGap)
+    ? `A simplified Taylor Rule implies roughly ${formatPercent(taylorRate)}. Current policy is ${Math.abs(stanceGap).toFixed(2)} pp ${stanceGap >= 0 ? "above" : "below"} that level.`
+    : "Taylor Rule estimate unavailable with current data.";
+
+  const inflationRisk = !corePce
+    ? "Inflation risk unobservable."
+    : corePce.stats.yoy > 3
+      ? "Upside inflation risk remains elevated; disinflation progress is incomplete."
+      : corePce.stats.yoy > 2.3
+        ? "Upside inflation risk is moderate; progress is visible but not finished."
+        : "Upside inflation risk is lower; inflation is close to target-consistent territory.";
+
+  const growthRisk = !gdp || !spread
+    ? "Growth risk unobservable."
+    : spread.stats.latest.value < 0
+      ? `Downside growth risk is elevated. The 2s10s spread is ${formatSpread(spreadPct)}, still consistent with recession watch.`
+      : gdp.stats.yoy < 1.5
+        ? `Downside growth risk is moderate. GDP is soft at ${safePercent(gdp.stats.yoy)} YoY even though the curve is less alarming.`
+        : `Downside growth risk is contained for now. GDP and curve signals do not indicate an imminent contraction.`;
+
+  const demandRisk = !retail
+    ? "Demand signal unavailable."
+    : retail.stats.yoy > 4
+      ? `Consumer demand remains resilient with retail sales running ${safePercent(retail.stats.yoy)} YoY.`
+      : `Consumer demand is softer, with retail sales at ${safePercent(retail.stats.yoy)} YoY.`;
+
+  const panels = [
+    {
+      tone: corePce?.narrative.tone || "cool",
+      kicker: "// SYNTHETIC FED ANALYSIS - AI-POWERED FOMC ASSESSMENT",
+      body: `<strong>Dual Mandate Status:</strong> ${escapeHtml(inflationClause)} ${escapeHtml(laborClause)} ${escapeHtml(payrollClause)}`,
+    },
+    {
+      tone: fedFunds?.narrative.tone || "warn",
+      kicker: "// POLICY RATE OUTLOOK - TAYLOR RULE ANALYSIS",
+      body: `<strong>${escapeHtml(policyText)}</strong> ${escapeHtml(taylorText)}`,
+    },
+    {
+      tone: spread?.stats.latest.value < 0 ? "hot" : "warn",
+      kicker: "// RISK BALANCE",
+      body: `<strong>Upside Inflation Risks:</strong> ${escapeHtml(inflationRisk)} <strong>Downside Growth Risks:</strong> ${escapeHtml(growthRisk)} <strong>Demand Backdrop:</strong> ${escapeHtml(demandRisk)}`,
+    },
+    {
+      tone: spread?.stats.latest.value < 0 ? "warn" : "ok",
+      kicker: "// RECESSION SIGNAL",
+      body: `<strong>2Y-10Y Spread:</strong> ${escapeHtml(formatSpread(spreadPct))}. ${escapeHtml(spread?.narrative.state || "Yield curve signal unavailable.")}`,
+    },
+  ];
+
+  el.cardsContainer.innerHTML = `
+    <section class="section-banner">// FED ANALYSIS - POLICY SYNTHESIS</section>
+    ${panels
+      .map(
+        (panel) => `
+          <article class="analysis-panel ${panel.tone}">
+            <p class="analysis-kicker">${panel.kicker}</p>
+            <p class="analysis-copy">${panel.body}</p>
+          </article>
+        `,
+      )
+      .join("")}
+  `;
+}
+
 function renderInsights(data) {
+  el.cardsContainer.classList.remove("analysis-grid");
+
   const pce = data.find((d) => d.id === "PCEPI");
   const unrate = data.find((d) => d.id === "UNRATE");
   const funds = data.find((d) => d.id === "FEDFUNDS");
@@ -462,10 +585,20 @@ function updatePulseChips(data) {
   const pce = data.find((d) => d.id === "PCEPI");
   const unrate = data.find((d) => d.id === "UNRATE");
   const funds = data.find((d) => d.id === "FEDFUNDS");
+  const spread = data.find((d) => d.id === "T10Y2Y");
 
   el.inflationPulse.textContent = pce ? pce.narrative.badge : "n/a";
   el.laborPulse.textContent = unrate ? unrate.narrative.badge : "n/a";
   el.ratesPulse.textContent = funds ? funds.narrative.badge : "n/a";
+  if (!spread) {
+    el.recessionPulse.textContent = "n/a";
+  } else if (spread.stats.latest.value < 0) {
+    el.recessionPulse.textContent = "Elevated";
+  } else if (spread.stats.latest.value < 0.5) {
+    el.recessionPulse.textContent = "Watch";
+  } else {
+    el.recessionPulse.textContent = "Low";
+  }
 }
 
 function setStatus(text, tone) {
@@ -484,13 +617,14 @@ function renderMissingKeyMessage() {
     <article class="card">
       <h3 class="card-title">FED data API key required</h3>
       <p class="explain">Enter key manually, or run via local Node server with .env using FED_API_KEY or FRED_API_KEY.</p>
-      <p class="mono-line">When `.env` key is detected, the dashboard auto-uses it.</p>
+      <p class="mono-line">When server mode detects a valid .env key, the dashboard auto-uses it.</p>
     </article>
   `;
   el.insightList.innerHTML = "<li>Waiting for API key to generate Powell brief.</li>";
   el.inflationPulse.textContent = "-";
   el.laborPulse.textContent = "-";
   el.ratesPulse.textContent = "-";
+  el.recessionPulse.textContent = "-";
 }
 
 function clearCharts() {
@@ -505,6 +639,25 @@ function formatValue(value, unit) {
   if (unit === "bps") return `${(value * 100).toFixed(0)} bps`;
   if (Math.abs(value) >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
   return value.toFixed(2);
+}
+
+function formatPercent(value) {
+  return Number.isFinite(value) ? `${value.toFixed(2)}%` : "n/a";
+}
+
+function safePercent(value) {
+  return Number.isFinite(value) ? `${value.toFixed(2)}%` : "n/a";
+}
+
+function formatSigned(value, decimals) {
+  if (!Number.isFinite(value)) return "n/a";
+  const formatted = value.toFixed(decimals);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+function formatSpread(value) {
+  if (!Number.isFinite(value)) return "n/a";
+  return `${(value * 100).toFixed(0)} bps`;
 }
 
 function escapeHtml(text) {
