@@ -1,6 +1,3 @@
-const FED_DATA_BASE = "https://api.stlouisfed.org/fred/series/observations";
-const LOCAL_STORAGE_KEY = "macro_terminal_fed_key";
-const SERVER_CONFIG_URL = "/api/config";
 const SERVER_SERIES_URL = "/api/series";
 
 const SERIES = [
@@ -93,15 +90,8 @@ const SERIES = [
 let currentCategory = "overview";
 let chartMap = new Map();
 let latestDataset = [];
-let hasServerKey = false;
 
 const el = {
-  apiPanel: document.getElementById("apiPanel"),
-  apiKeyLabel: document.getElementById("apiKeyLabel"),
-  apiKeyInput: document.getElementById("apiKeyInput"),
-  apiHint: document.getElementById("apiHint"),
-  saveKeyBtn: document.getElementById("saveKeyBtn"),
-  refreshBtn: document.getElementById("refreshBtn"),
   tabs: document.querySelectorAll(".tab"),
   cardsContainer: document.getElementById("cardsContainer"),
   insightList: document.getElementById("insightList"),
@@ -116,21 +106,6 @@ const el = {
 init();
 
 async function init() {
-  await detectServerConfig();
-  updateApiPanelMode();
-
-  const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (stored && !hasServerKey) {
-    el.apiKeyInput.value = stored;
-  }
-
-  el.saveKeyBtn.addEventListener("click", () => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, el.apiKeyInput.value.trim());
-    setStatus("API key saved", "cool");
-  });
-
-  el.refreshBtn.addEventListener("click", refreshAll);
-
   el.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       currentCategory = tab.dataset.category;
@@ -143,47 +118,12 @@ async function init() {
   refreshAll();
 }
 
-function updateApiPanelMode() {
-  if (hasServerKey) {
-    el.apiPanel.style.display = "none";
-    return;
-  }
-
-  el.apiPanel.style.display = "";
-  el.apiKeyLabel.textContent = "FED Data API Key";
-  el.apiKeyInput.style.display = "";
-  el.saveKeyBtn.style.display = "";
-  el.apiHint.textContent = "Can auto-load from .env in server mode, or paste manually. Key docs: fred.stlouisfed.org/docs/api/api_key.html";
-}
-
-async function detectServerConfig() {
-  try {
-    const response = await fetch(SERVER_CONFIG_URL, { cache: "no-store" });
-    if (!response.ok) {
-      return;
-    }
-
-    const payload = await response.json();
-    hasServerKey = Boolean(payload?.hasServerKey);
-  } catch (_error) {
-    hasServerKey = false;
-  }
-}
 
 async function refreshAll() {
-  const apiKey = el.apiKeyInput.value.trim();
-  const useServerKey = hasServerKey;
-
-  if (!useServerKey && !apiKey) {
-    setStatus("Missing FED data API key", "hot");
-    renderMissingKeyMessage();
-    return;
-  }
-
   setStatus("Loading data...", "warn");
 
   try {
-    const payload = await Promise.all(SERIES.map((s) => fetchSeriesData(s, apiKey, useServerKey)));
+    const payload = await Promise.all(SERIES.map((s) => fetchSeriesData(s)));
     latestDataset = payload.filter(Boolean);
     renderInsights(latestDataset);
     renderCards(latestDataset);
@@ -196,17 +136,13 @@ async function refreshAll() {
   }
 }
 
-async function fetchSeriesData(series, apiKey, useServerKey) {
-  const url = useServerKey ? new URL(SERVER_SERIES_URL, window.location.origin) : new URL(FED_DATA_BASE);
+async function fetchSeriesData(series) {
+  const url = new URL(SERVER_SERIES_URL, window.location.origin);
 
   url.searchParams.set("series_id", series.id);
   url.searchParams.set("file_type", "json");
   url.searchParams.set("sort_order", "desc");
   url.searchParams.set("limit", "240");
-
-  if (!useServerKey) {
-    url.searchParams.set("api_key", apiKey);
-  }
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -609,22 +545,6 @@ function setStatus(text, tone) {
     hot: "#ff7a59",
     cool: "#67d6ff",
   }[tone] || "#d9f4ff";
-}
-
-function renderMissingKeyMessage() {
-  clearCharts();
-  el.cardsContainer.innerHTML = `
-    <article class="card">
-      <h3 class="card-title">FED data API key required</h3>
-      <p class="explain">Enter key manually, or run via local Node server with .env using FED_API_KEY or FRED_API_KEY.</p>
-      <p class="mono-line">When server mode detects a valid .env key, the dashboard auto-uses it.</p>
-    </article>
-  `;
-  el.insightList.innerHTML = "<li>Waiting for API key to generate Powell brief.</li>";
-  el.inflationPulse.textContent = "-";
-  el.laborPulse.textContent = "-";
-  el.ratesPulse.textContent = "-";
-  el.recessionPulse.textContent = "-";
 }
 
 function clearCharts() {
