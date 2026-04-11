@@ -20,14 +20,20 @@ For each indicator, it provides:
 
 ## Run
 
-1. Open `index.html` in a browser.
-2. Enter your FED data API key.
+1. Create `.env` from `.env.example` and set `FED_API_KEY` (or `FRED_API_KEY`).
+2. Start server: `npm start`
+3. Open `http://localhost:3000`
+4. Dashboard auto-uses API key from `.env`
+
+Fallback mode:
+
+1. Open `index.html` directly in a browser.
+2. Paste API key manually.
 3. Click **Save** and then **Refresh**.
-4. Flip between tabs for category views.
 
 ## Notes
 
 - API key is stored in browser local storage (`macro_terminal_fed_key`).
 - `.env.example` is sample format only. Put real key in local `.env` and never commit it.
-- Expected env format: `FED_API_KEY=replace_with_your_api_key`.
+- Expected env format: `FED_API_KEY=replace_with_your_api_key` or `FRED_API_KEY=replace_with_your_api_key`.
 - If you do not have a key, request one at [fred.stlouisfed.org/docs/api/api_key.html](https://fred.stlouisfed.org/docs/api/api_key.html).

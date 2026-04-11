@@ -1,5 +1,7 @@
 const FED_DATA_BASE = "https://api.stlouisfed.org/fred/series/observations";
 const LOCAL_STORAGE_KEY = "macro_terminal_fed_key";
+const SERVER_CONFIG_URL = "/api/config";
+const SERVER_SERIES_URL = "/api/series";
 
 const SERIES = [
   {
@@ -91,6 +93,7 @@ const SERIES = [
 let currentCategory = "overview";
 let chartMap = new Map();
 let latestDataset = [];
+let hasServerKey = false;
 
 const el = {
   apiKeyInput: document.getElementById("apiKeyInput"),
@@ -108,10 +111,17 @@ const el = {
 
 init();
 
-function init() {
+async function init() {
+  await detectServerConfig();
+
   const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (stored) {
+  if (stored && !hasServerKey) {
     el.apiKeyInput.value = stored;
+  }
+
+  if (hasServerKey) {
+    el.apiKeyInput.value = "";
+    el.apiKeyInput.placeholder = "Using FED_API_KEY/FRED_API_KEY from .env";
   }
 
   el.saveKeyBtn.addEventListener("click", () => {
@@ -133,9 +143,25 @@ function init() {
   refreshAll();
 }
 
+async function detectServerConfig() {
+  try {
+    const response = await fetch(SERVER_CONFIG_URL, { cache: "no-store" });
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    hasServerKey = Boolean(payload?.hasServerKey);
+  } catch (_error) {
+    hasServerKey = false;
+  }
+}
+
 async function refreshAll() {
   const apiKey = el.apiKeyInput.value.trim();
-  if (!apiKey) {
+  const useServerKey = hasServerKey;
+
+  if (!useServerKey && !apiKey) {
     setStatus("Missing FED data API key", "hot");
     renderMissingKeyMessage();
     return;
@@ -144,30 +170,42 @@ async function refreshAll() {
   setStatus("Loading data...", "warn");
 
   try {
-    const payload = await Promise.all(SERIES.map((s) => fetchSeriesData(s, apiKey)));
+    const payload = await Promise.all(SERIES.map((s) => fetchSeriesData(s, apiKey, useServerKey)));
     latestDataset = payload.filter(Boolean);
     renderInsights(latestDataset);
     renderCards(latestDataset);
     updatePulseChips(latestDataset);
     el.lastUpdate.textContent = new Date().toLocaleString();
-    setStatus("Live", "ok");
+    setStatus(useServerKey ? "Live (.env key)" : "Live", "ok");
   } catch (error) {
     setStatus("Fetch error", "hot");
     el.cardsContainer.innerHTML = `<article class="card"><p class="explain">${escapeHtml(error.message)}</p></article>`;
   }
 }
 
-async function fetchSeriesData(series, apiKey) {
-  const url = new URL(FED_DATA_BASE);
+async function fetchSeriesData(series, apiKey, useServerKey) {
+  const url = useServerKey ? new URL(SERVER_SERIES_URL, window.location.origin) : new URL(FED_DATA_BASE);
+
   url.searchParams.set("series_id", series.id);
-  url.searchParams.set("api_key", apiKey);
   url.searchParams.set("file_type", "json");
   url.searchParams.set("sort_order", "asc");
   url.searchParams.set("limit", "600");
 
+  if (!useServerKey) {
+    url.searchParams.set("api_key", apiKey);
+  }
+
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`FED data request failed for ${series.id}`);
+    let errorText = "";
+    try {
+      const errorJson = await response.json();
+      errorText = errorJson?.error_message || "";
+    } catch (_error) {
+      errorText = "";
+    }
+
+    throw new Error(errorText || `FED data request failed for ${series.id}`);
   }
 
   const data = await response.json();
@@ -428,8 +466,8 @@ function renderMissingKeyMessage() {
   el.cardsContainer.innerHTML = `
     <article class="card">
       <h3 class="card-title">FED data API key required</h3>
-      <p class="explain">Enter your key above to load macro indicators. The dashboard stores the key in local browser storage only.</p>
-      <p class="mono-line">Once saved, click Refresh to pull the latest releases.</p>
+      <p class="explain">Enter key manually, or run via local Node server with .env using FED_API_KEY or FRED_API_KEY.</p>
+      <p class="mono-line">When `.env` key is detected, the dashboard auto-uses it.</p>
     </article>
   `;
   el.insightList.innerHTML = "<li>Waiting for API key to generate Powell brief.</li>";
