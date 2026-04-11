@@ -1,4 +1,5 @@
 const SERVER_SERIES_URL = "/api/series";
+const SNAPSHOT_URL = "data/fred_snapshot.json";
 
 const SERIES = [
   {
@@ -90,6 +91,9 @@ const SERIES = [
 let currentCategory = "overview";
 let chartMap = new Map();
 let latestDataset = [];
+let snapshotCachePromise = null;
+let snapshotGeneratedAt = null;
+let usedSnapshotSource = false;
 
 const el = {
   tabs: document.querySelectorAll(".tab"),
@@ -121,6 +125,7 @@ async function init() {
 
 async function refreshAll() {
   setStatus("Loading data...", "warn");
+  usedSnapshotSource = false;
 
   try {
     const settled = await Promise.allSettled(SERIES.map((s) => fetchSeriesData(s)));
@@ -142,7 +147,14 @@ async function refreshAll() {
     renderInsights(latestDataset);
     renderCards(latestDataset);
     updatePulseChips(latestDataset);
-    el.lastUpdate.textContent = new Date().toLocaleString();
+    el.lastUpdate.textContent = usedSnapshotSource && snapshotGeneratedAt
+      ? `${new Date(snapshotGeneratedAt).toLocaleString()} (snapshot)`
+      : new Date().toLocaleString();
+
+    if (usedSnapshotSource) {
+      setStatus("Snapshot mode", "warn");
+      return;
+    }
 
     if (errors.length) {
       setStatus("Partial data", "warn");
@@ -157,6 +169,20 @@ async function refreshAll() {
 }
 
 async function fetchSeriesData(series) {
+  try {
+    return await fetchSeriesFromApi(series);
+  } catch (apiError) {
+    try {
+      const fromSnapshot = await fetchSeriesFromSnapshot(series);
+      usedSnapshotSource = true;
+      return fromSnapshot;
+    } catch (_snapshotError) {
+      throw apiError;
+    }
+  }
+}
+
+async function fetchSeriesFromApi(series) {
   const url = new URL(SERVER_SERIES_URL, window.location.origin);
 
   url.searchParams.set("series_id", series.id);
@@ -208,6 +234,49 @@ async function fetchSeriesData(series) {
   };
 }
 
+async function fetchSeriesFromSnapshot(series) {
+  const snapshot = await loadSnapshotData();
+  const rawPoints = snapshot?.series?.[series.id];
+
+  if (!Array.isArray(rawPoints) || rawPoints.length < 3) {
+    throw new Error(`No snapshot data for ${series.id}`);
+  }
+
+  const points = rawPoints
+    .map((item) => ({ date: item.date, value: Number(item.value) }))
+    .filter((item) => Number.isFinite(item.value));
+
+  if (points.length < 3) {
+    throw new Error(`Snapshot data invalid for ${series.id}`);
+  }
+
+  const stats = computeStats(points);
+  return {
+    ...series,
+    points,
+    stats,
+    narrative: buildNarrative(series, stats),
+  };
+}
+
+function loadSnapshotData() {
+  if (!snapshotCachePromise) {
+    const snapshotUrl = new URL(SNAPSHOT_URL, window.location.href);
+    snapshotCachePromise = fetch(snapshotUrl, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Snapshot file not available (HTTP ${response.status})`);
+        }
+
+        const data = await response.json();
+        snapshotGeneratedAt = data?.generatedAt || null;
+        return data;
+      });
+  }
+
+  return snapshotCachePromise;
+}
+
 function renderConnectionError(message) {
   clearCharts();
   el.cardsContainer.classList.remove("analysis-grid");
@@ -215,8 +284,8 @@ function renderConnectionError(message) {
     <article class="card">
       <h3 class="card-title">Data connection issue</h3>
       <p class="explain">${escapeHtml(message || "Unable to load macro data right now.")}</p>
-      <p class="mono-line">Site users do not need their own API keys. The server must have FED_API_KEY or FRED_API_KEY configured.</p>
-      <p class="mono-line">If this is deployed statically, /api/series is unavailable until a backend proxy is running.</p>
+      <p class="mono-line">Site users do not need their own API keys. Local mode requires server runtime with FED_API_KEY or FRED_API_KEY.</p>
+      <p class="mono-line">GitHub Pages uses static snapshot data from data/fred_snapshot.json, refreshed by GitHub Actions.</p>
     </article>
   `;
   el.insightList.innerHTML = "<li>Waiting for data source recovery.</li>";

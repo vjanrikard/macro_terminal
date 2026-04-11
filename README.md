@@ -24,23 +24,32 @@ For each indicator, it provides:
 1. Create `.env` from `.env.example` and set `FED_API_KEY` (or `FRED_API_KEY`).
 2. Start server: `npm start`
 3. Open `http://localhost:3000`
-4. Dashboard auto-uses API key from `.env` and hides manual key input
+4. Dashboard auto-uses API key from `.env` via `/api/series`
 
-Fallback mode:
+## GitHub Pages Mode (No User API Key)
 
-1. Open `index.html` directly in a browser.
-2. Paste API key manually.
-3. Click **Save** and then **Refresh**.
+GitHub Pages cannot run `server.js`, so the site uses a static snapshot file:
+
+- Data file: `data/fred_snapshot.json`
+- Auto-refresh: `.github/workflows/update-snapshot.yml` (hourly)
+- Generator: `scripts/build-snapshot.js`
+
+Setup required once in GitHub repository settings:
+
+1. Go to **Settings -> Secrets and variables -> Actions**
+2. Add secret `FED_API_KEY` (or `FRED_API_KEY`)
+3. Run workflow **Update FED Snapshot** once manually (or wait for next hourly schedule)
+
+After that, users on GitHub Pages can view data without entering any API key.
 
 Display behavior:
 
 - Indicator cards are sorted by newest release date first.
-- In server mode (`npm start`), manual API key controls are hidden.
+- In GitHub Pages mode, app falls back to static snapshot when backend is unavailable.
 - FED ANALYSIS renders larger terminal-style policy panels instead of standard indicator cards.
 
 ## Notes
 
-- API key is stored in browser local storage (`macro_terminal_fed_key`).
 - `.env.example` is sample format only. Put real key in local `.env` and never commit it.
 - Expected env format: `FED_API_KEY=replace_with_your_api_key` or `FRED_API_KEY=replace_with_your_api_key`.
 - If you do not have a key, request one at [fred.stlouisfed.org/docs/api/api_key.html](https://fred.stlouisfed.org/docs/api/api_key.html).
