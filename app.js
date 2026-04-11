@@ -123,16 +123,36 @@ async function refreshAll() {
   setStatus("Loading data...", "warn");
 
   try {
-    const payload = await Promise.all(SERIES.map((s) => fetchSeriesData(s)));
-    latestDataset = payload.filter(Boolean);
+    const settled = await Promise.allSettled(SERIES.map((s) => fetchSeriesData(s)));
+    const payload = settled
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => r.value)
+      .filter(Boolean);
+    const errors = settled
+      .filter((r) => r.status === "rejected")
+      .map((r) => r.reason?.message || "Unknown error");
+
+    latestDataset = payload;
+
+    if (!latestDataset.length) {
+      const primaryError = errors[0] || "Data service unavailable.";
+      throw new Error(primaryError);
+    }
+
     renderInsights(latestDataset);
     renderCards(latestDataset);
     updatePulseChips(latestDataset);
     el.lastUpdate.textContent = new Date().toLocaleString();
+
+    if (errors.length) {
+      setStatus("Partial data", "warn");
+      return;
+    }
+
     setStatus("FED ANALYSIS", "ok");
   } catch (error) {
     setStatus("Fetch error", "hot");
-    el.cardsContainer.innerHTML = `<article class="card"><p class="explain">${escapeHtml(error.message)}</p></article>`;
+    renderConnectionError(error.message);
   }
 }
 
@@ -148,13 +168,21 @@ async function fetchSeriesData(series) {
   if (!response.ok) {
     let errorText = "";
     try {
-      const errorJson = await response.json();
-      errorText = errorJson?.error_message || "";
+      const raw = await response.text();
+      if (raw) {
+        try {
+          const errorJson = JSON.parse(raw);
+          errorText = errorJson?.error_message || raw;
+        } catch (_parseError) {
+          errorText = raw;
+        }
+      }
     } catch (_error) {
       errorText = "";
     }
 
-    throw new Error(errorText || `FED data request failed for ${series.id}`);
+    const compactError = errorText ? errorText.replace(/\s+/g, " ").trim().slice(0, 180) : "";
+    throw new Error(compactError || `FED data request failed for ${series.id} (HTTP ${response.status})`);
   }
 
   const data = await response.json();
@@ -178,6 +206,25 @@ async function fetchSeriesData(series) {
     stats,
     narrative: buildNarrative(series, stats),
   };
+}
+
+function renderConnectionError(message) {
+  clearCharts();
+  el.cardsContainer.classList.remove("analysis-grid");
+  el.cardsContainer.innerHTML = `
+    <article class="card">
+      <h3 class="card-title">Data connection issue</h3>
+      <p class="explain">${escapeHtml(message || "Unable to load macro data right now.")}</p>
+      <p class="mono-line">Site users do not need their own API keys. The server must have FED_API_KEY or FRED_API_KEY configured.</p>
+      <p class="mono-line">If this is deployed statically, /api/series is unavailable until a backend proxy is running.</p>
+    </article>
+  `;
+  el.insightList.innerHTML = "<li>Waiting for data source recovery.</li>";
+  el.lastUpdate.textContent = "-";
+  el.inflationPulse.textContent = "n/a";
+  el.laborPulse.textContent = "n/a";
+  el.ratesPulse.textContent = "n/a";
+  el.recessionPulse.textContent = "n/a";
 }
 
 function computeStats(points) {
