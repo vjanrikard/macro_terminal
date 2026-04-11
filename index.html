@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Macro Terminal</title>
+  <title>FED MACRO TERMINAL</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
@@ -17,17 +17,17 @@
     <header class="terminal-header">
       <div class="terminal-title-wrap">
         <p class="prompt-line">macro@terminal:~$ ./powell-monitor --source fed --mode live</p>
-        <h1 class="terminal-title">Macro Terminal</h1>
+        <h1 class="terminal-title">FED MACRO TERMINAL</h1>
         <p class="terminal-subtitle">Federal Reserve signal board with live FED-focused data and policy-facing interpretation.</p>
       </div>
       <div class="api-panel">
-        <label for="apiKeyInput">FED Data API Key</label>
+        <label id="apiKeyLabel" for="apiKeyInput">FED Data API Key</label>
         <div class="api-row">
           <input id="apiKeyInput" type="password" placeholder="Enter key (stored in browser)" autocomplete="off" />
           <button id="saveKeyBtn" type="button">Save</button>
           <button id="refreshBtn" type="button">Refresh</button>
         </div>
-        <p class="api-hint">Can auto-load from .env in server mode, or paste manually. Key docs: fred.stlouisfed.org/docs/api/api_key.html</p>
+        <p id="apiHint" class="api-hint">Can auto-load from .env in server mode, or paste manually. Key docs: fred.stlouisfed.org/docs/api/api_key.html</p>
       </div>
     </header>
 

@@ -96,7 +96,9 @@ let latestDataset = [];
 let hasServerKey = false;
 
 const el = {
+  apiKeyLabel: document.getElementById("apiKeyLabel"),
   apiKeyInput: document.getElementById("apiKeyInput"),
+  apiHint: document.getElementById("apiHint"),
   saveKeyBtn: document.getElementById("saveKeyBtn"),
   refreshBtn: document.getElementById("refreshBtn"),
   tabs: document.querySelectorAll(".tab"),
@@ -113,15 +115,11 @@ init();
 
 async function init() {
   await detectServerConfig();
+  updateApiPanelMode();
 
   const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (stored && !hasServerKey) {
     el.apiKeyInput.value = stored;
-  }
-
-  if (hasServerKey) {
-    el.apiKeyInput.value = "";
-    el.apiKeyInput.placeholder = "Using FED_API_KEY/FRED_API_KEY from .env";
   }
 
   el.saveKeyBtn.addEventListener("click", () => {
@@ -141,6 +139,22 @@ async function init() {
   });
 
   refreshAll();
+}
+
+function updateApiPanelMode() {
+  if (hasServerKey) {
+    el.apiKeyLabel.textContent = "FED API key loaded from .env";
+    el.apiKeyInput.value = "";
+    el.apiKeyInput.style.display = "none";
+    el.saveKeyBtn.style.display = "none";
+    el.apiHint.textContent = "Server mode active. Key is read from FED_API_KEY/FRED_API_KEY in .env. Use Refresh to reload data.";
+    return;
+  }
+
+  el.apiKeyLabel.textContent = "FED Data API Key";
+  el.apiKeyInput.style.display = "";
+  el.saveKeyBtn.style.display = "";
+  el.apiHint.textContent = "Can auto-load from .env in server mode, or paste manually. Key docs: fred.stlouisfed.org/docs/api/api_key.html";
 }
 
 async function detectServerConfig() {
@@ -188,8 +202,8 @@ async function fetchSeriesData(series, apiKey, useServerKey) {
 
   url.searchParams.set("series_id", series.id);
   url.searchParams.set("file_type", "json");
-  url.searchParams.set("sort_order", "asc");
-  url.searchParams.set("limit", "600");
+  url.searchParams.set("sort_order", "desc");
+  url.searchParams.set("limit", "240");
 
   if (!useServerKey) {
     url.searchParams.set("api_key", apiKey);
@@ -215,7 +229,8 @@ async function fetchSeriesData(series, apiKey, useServerKey) {
 
   const points = data.observations
     .map((item) => ({ date: item.date, value: Number(item.value) }))
-    .filter((item) => Number.isFinite(item.value));
+    .filter((item) => Number.isFinite(item.value))
+    .reverse();
 
   if (points.length < 3) {
     return null;
@@ -345,7 +360,9 @@ function assessSeries(id, stats) {
 }
 
 function renderCards(data) {
-  const filtered = currentCategory === "overview" ? data : data.filter((d) => d.category === currentCategory);
+  const filtered = (currentCategory === "overview" ? data : data.filter((d) => d.category === currentCategory))
+    .slice()
+    .sort((a, b) => new Date(b.stats.latest.date) - new Date(a.stats.latest.date));
 
   clearCharts();
 

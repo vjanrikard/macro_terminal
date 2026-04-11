@@ -1,4 +1,4 @@
-# Macro Terminal
+# FED MACRO TERMINAL
 
 Interactive terminal-style dashboard for macroeconomic monitoring using live FED-focused data.
 
@@ -23,13 +23,18 @@ For each indicator, it provides:
 1. Create `.env` from `.env.example` and set `FED_API_KEY` (or `FRED_API_KEY`).
 2. Start server: `npm start`
 3. Open `http://localhost:3000`
-4. Dashboard auto-uses API key from `.env`
+4. Dashboard auto-uses API key from `.env` and hides manual key input
 
 Fallback mode:
 
 1. Open `index.html` directly in a browser.
 2. Paste API key manually.
 3. Click **Save** and then **Refresh**.
+
+Display behavior:
+
+- Indicator cards are sorted by newest release date first.
+- In server mode (`npm start`), manual API key controls are hidden.
 
 ## Notes
 
